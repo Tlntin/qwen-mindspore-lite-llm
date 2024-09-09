@@ -1,0 +1,13 @@
+onnx==1.16.1
+onnxruntime==1.18.1
+transformers==4.37.0
+# onnxruntime-cann==1.18.1
+# if you has cuda, you can use this to install pytorch
+# pip install torch==2.1.0 --index-url https://download.pytorch.org/whl/cu121
+torch==2.1.0
+# torch-npu==2.1.0.post6  # is option, if you want to use NPU export model
+tqdm
+fastapi
+uvicorn
+sse_starlette==1.6.5
+openai
