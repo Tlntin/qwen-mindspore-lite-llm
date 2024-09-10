@@ -8,3 +8,4 @@ __pycache__/
 .idea
 export/*.json
 *.json
+air_weight/

@@ -18,9 +18,9 @@ def parser_args():
     parser.add_argument(
         "--session_type",
         type=str,
-        default="acl",
         help="acl or onnx",
         choices=["acl", "onnx"],
+        default="onnx",
     )
     parser.add_argument(
         '--onnx_model_path',
@@ -53,7 +53,7 @@ def parser_args():
             "the number must by 2^xx, like 1, 2, 4, 8, 16, 32, 64, 128, 256... "
             "Note! The higher this number, the longer it will take to compile.",
         type=int,
-        default=8,
+        default=1,
     )
 
     parser.add_argument(

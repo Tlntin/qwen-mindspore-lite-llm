@@ -1,5 +1,5 @@
 ### 说明
-- 本项目基于之前的[qwen-ascend-llm](https://github.com/Tlntin/qwen-ascend-llm)项目魔改而来，基本和之前相差不大，只是模型推理从CANN变成了mindspore-lite。同时为了后续在手机部署，需要将python换成c++；数据格式需要从ND换成NCHW(华为手机上面的mindspore-lite只支持NCHW格式)。
+- 本项目基于之前的[qwen-ascend-llm](https://github.com/Tlntin/qwen-ascend-llm)项目魔改而来，基本和之前相差不大，只是模型推理从CANN变成了mindspore-lite。数据格式需要从ND换成NCHW(华为手机上面的mindspore-lite只支持NCHW格式)。
 
 ### 准备工作
 1. 下载本项目
@@ -36,7 +36,7 @@
       --onnx_model_path="./output/onnx/qwen2_1.5b_chat.onnx" \
       --kv_cache_length=1024
     ```
-  - 对于CPU设备
+  - 对于CPU设备(CPU导出的东西仅做代码结构验证，推荐还是用NPU导出更好)
     ```bash
     python3 export/export_onnx.py \
       --device_str="cpu" \
@@ -60,6 +60,12 @@
       --dtype="float32" \
       --onnx_model_path="./output/onnx/qwen2_1.5b_chat.onnx"
     ```
+  - 也可以用npu开发板上面的cpu跑onnx（一般测试结构，统一用上面的cpu会好一些）
+    ```bash
+    python3 export/test_onnx_run.py \
+      --dtype="float16" \
+      --onnx_model_path="./output/onnx/qwen2_1.5b_chat.onnx"
+    ```
 
 4. （可选？）改变onnx结构，目前导出的Trilu算子和Cast算子有些问题，atc命令无法识别，需要改一下结构。
   ```bash
@@ -70,13 +76,45 @@
 
 5. 将onnx转成MindSpore-Lite的文件。
   - 对于CPU转成的onnx，建议使用下面的命令
+    ```bash
+    python3 export/onnx2ms.py \
+      --dtype="default" \
+      --hf_model_dir="${PWD}/download/Qwen2-1.5B-Instruct" \
+      --onnx_model_path="${PWD}/output/onnx/qwen2_1.5b_chat.onnx" \
+      --ms_model_path="${PWD}/output/model/qwen2_1.5b_chat" \
+      --save_type="mindir_lite" \
+      --ms_optimize="general" \
+      --kv_cache_length=1024
+    ```
+  - 对于NPU转成的onnx，建议使用下面的命令
+    ```bash
+    python3 export/onnx2ms.py \
+      --dtype="float16" \
+      --hf_model_dir="${PWD}/download/Qwen2-1.5B-Instruct" \
+      --onnx_model_path="${PWD}/output/onnx/qwen2_1.5b_chat.onnx" \
+      --ms_model_path="${PWD}/output/model/qwen2_1.5b_chat" \
+      --save_type="mindir_lite" \
+      --ms_optimize="ascend_oriented" \
+      --optimize_transformer="true" \
+      --kv_cache_length=1024
+    ```
+    - Qwen2-1.5B-Instruct原始模型大小2.9GB，转成的原始onnx文件大小2.9GB。转换后的mindIR文件大小参考。
+      | ms_optimize     | optimize_transformer | 数据类型 | 设备类型 | 成品文件大小 |
+      | --------------- | -------------------- | -------- | -------- | ------------ |
+      | general         | false                | float32  | CPU      | 12GB         |
+      | general         | false                | float16  | NPU      | 6.1GB        |
+      | general         | true                 | float16  | NPU      | 6.1GB        |
+      | ascend_oriented | true                 | float16  | NPU      | 3.4GB        |
+      | ascend_oriented | false                | float16  | NPU      | 3.4GB   |
+
+6. 测试使用onnx对话（注意：由于是CPU运行，所以速度较慢，请耐心等待）
   ```bash
-  python3 export/onnx2ms.py \
-    --dtype="default" \
-    --hf_model_dir="${PWD}/download/Qwen2-1.5B-Instruct" \
-    --onnx_model_path="${PWD}/output/onnx/qwen2_1.5b_chat.onnx" \
-    --ms_model_path="${PWD}/output/model/qwen2_1.5b_chat" \
-    --save_type="mindir_lite" \
-    --ms_optimiz="general" \
-    --kv_cache_length=1024
+  python3 ./cli_chat.py \
+    --session_type=onnx \
+    --hf_model_dir="./download/Qwen2-1.5B-Instruct" \
+    --onnx_model_path="./output/onnx/qwen2_1.5b_chat.onnx"
   ```
+
+7. 测试使用mindspore-lite生成的模型文件对话。
+
+
