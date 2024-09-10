@@ -9,6 +9,15 @@
 
 2. 下载qwen1.5/qwen2的模型，选择chat模型或者instruct模型，将其放到download文件夹，仅支持huggingface下载的模型，网络不好的可以用镜像站：https://hf-mirror.com/Qwen
 
+3. 需要已经配置好mindspore-lite的环境，可以参考下面这个环境配置。
+    ```bash
+    # mindspore-lite
+    export LITE_HOME=/usr/local/mindspore-lite
+    export PATH=$PATH:${LITE_HOME}/tools/converter/converter:${LITE_HOME}/tools/benchmark
+    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${LITE_HOME}/tools/converter/lib:${LITE_HOME}/runtime/lib:${LITE_HOME}/runtime/third_party/dnnl
+    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${LITE_HOME}/runtime/third_party/glog:${LITE_HOME}/runtime/third_party/libjpeg-turbo/lib:${LITE_HOME}/runtime/third_party/securec
+    ```
+
 
 ### 详细运行步骤
 1. 安装python依赖（用于后续模型结构转onnx，以及onnx验证）。
@@ -52,9 +61,22 @@
       --onnx_model_path="./output/onnx/qwen2_1.5b_chat.onnx"
     ```
 
-4. 改变onnx结构，目前导出的Trilu算子和Cast算子有些问题，atc命令无法识别，需要改一下结构。
+4. （可选？）改变onnx结构，目前导出的Trilu算子和Cast算子有些问题，atc命令无法识别，需要改一下结构。
   ```bash
   python3 export/change_node.py \
     --input_model_path="./output/onnx/qwen2_1.5b_chat.onnx" \
     --output_model_path="./output/onnx2/qwen2_1.5b_chat.onnx"
+  ```
+
+5. 将onnx转成MindSpore-Lite的文件。
+  - 对于CPU转成的onnx，建议使用下面的命令
+  ```bash
+  python3 export/onnx2ms.py \
+    --dtype="default" \
+    --hf_model_dir="${PWD}/download/Qwen2-1.5B-Instruct" \
+    --onnx_model_path="${PWD}/output/onnx/qwen2_1.5b_chat.onnx" \
+    --ms_model_path="${PWD}/output/model/qwen2_1.5b_chat" \
+    --save_type="mindir_lite" \
+    --ms_optimiz="general" \
+    --kv_cache_length=1024
   ```

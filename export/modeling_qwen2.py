@@ -941,6 +941,9 @@ class Qwen2Model(Qwen2PreTrainedModel):
         super().__init__(config)
         self.padding_idx = config.pad_token_id
         self.vocab_size = config.vocab_size
+        self.num_hidden_layers = config.num_hidden_layers
+        self.num_key_value_heads = config.num_key_value_heads
+        self.per_head_dim = config.hidden_size // config.num_attention_heads
 
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, self.padding_idx)
         self.layers = nn.ModuleList(
@@ -1015,8 +1018,21 @@ class Qwen2Model(Qwen2PreTrainedModel):
 
         # return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
+        # convert [batch, fake_c, fake_h, fake_w] to [batch, seq_len]
+        input_ids = input_ids.view(-1, input_ids.size(-1))
+        attention_mask = attention_mask.view(-1, attention_mask.size(-1))
+        position_ids = position_ids.view(-1, position_ids.size(-1))
         # retrieve input_ids and inputs_embeds
         batch_size, seq_length = input_ids.shape
+        # convert past_key_values to the correct shape
+        past_key_values = past_key_values.view(
+            self.num_hidden_layers,
+            2,
+            batch_size,
+            self.num_key_value_heads,
+            past_key_values.size(-2),
+            past_key_values.size(-1),
+        )
         # if input_ids is not None and inputs_embeds is not None:
         #     raise ValueError("You cannot specify both decoder_input_ids and decoder_inputs_embeds at the same time")
         # elif input_ids is not None:
@@ -1157,6 +1173,8 @@ class Qwen2Model(Qwen2PreTrainedModel):
             # next_cache = next_decoder_cache.to_legacy_cache() if use_legacy_cache else next_decoder_cache
         one_shape = [len(presents) // 2, 2] + list(presents[0].shape)
         presents = torch.concat(presents).reshape(one_shape)
+        # convert kv_cache to [NCHW] format
+        presents = presents.view(batch_size, -1, presents.size(-2), presents.size(-1))
         return (
             hidden_states,
             presents,
@@ -1271,6 +1289,9 @@ class Qwen2ForCausalLM(Qwen2PreTrainedModel):
         hidden_states = outputs[0]
         logits = self.lm_head(hidden_states)
         logits = logits.float()
+
+        # convert logits to NCWH format
+        logits = logits.unsqueeze(3)
 
         # loss = None
         # if labels is not None:

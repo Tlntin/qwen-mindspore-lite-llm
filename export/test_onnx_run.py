@@ -117,24 +117,33 @@ llm_session = onnxruntime.InferenceSession(
 )
 
 seq_len = input_ids.shape[-1]
+real_seq_len = 2
 kv_cache1 = create_kv_cache(model_config)
-now_kv_cache, attn_mask, position_ids = get_inputs(kv_cache1, 1)
+now_kv_cache, attn_mask, position_ids = get_inputs(kv_cache1, real_seq_len)
+# convert [batch, w] to [batch, fake_c, fake_h, w]
+input_ids = input_ids.reshape(1, 1, 1, seq_len)
+attn_mask = attn_mask.reshape(1, 1, 1, attn_mask.shape[-1])
+position_ids = position_ids.reshape(1, 1, 1, position_ids.shape[-1])
+# convert kv_cache to [batch, fake_c, fake_h, w]
+now_kv_cache = now_kv_cache.reshape(1, -1, now_kv_cache.shape[-2], now_kv_cache.shape[-1])
+
+print("input_ids shape: ", input_ids[:, :, :, :real_seq_len].shape)
 print("now_kv_cache shape: ", now_kv_cache.shape)
 print("attention_mask shape: ", attn_mask.shape)
 print("position_ids shape: ", position_ids.shape)
 outputs = llm_session.run(None, {
-    "input_ids": input_ids[:, :1],
+    "input_ids": input_ids[:, :, :, :real_seq_len],
     "attention_mask": attn_mask,
     "position_ids": position_ids,
     "past_key_values": now_kv_cache,
 })
 print("==== onnx runtime ====")
 print("output length: ", len(outputs))
-logits = outputs[0]
+logits = outputs[0][:, :1, :, :]
 print("logits shape: ", logits.shape)
 print("logits mean: ", logits.astype(np.float32).mean().item())
 print("logits max: ", logits.astype(np.float32).max().item())
-new_kv_cache = outputs[1]  # [:, :, :, :, :-1, :]
+new_kv_cache = outputs[1][:, :, :1, :]  # [:, :, :, :, :-1, :]
 print("new_kv_cache: shape", new_kv_cache.shape)
 print("new_kv_cache: mean: ", new_kv_cache.astype(np.float32).mean().item())
 print("new_kv_cache: max: ", new_kv_cache.astype(np.float32).max().item())

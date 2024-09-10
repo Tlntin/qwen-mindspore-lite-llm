@@ -95,25 +95,6 @@ def export_onnx(
         torch_dtype=torch_dtype,
         # trust_remote_code=True
     ).to(device)
-    quantize_cfg = {
-        "query_key_value": {
-            "type": "W8X8",
-            "act_scale": False
-        },
-        "dense": {
-            "type": "W8X8",
-            "act_scale": False
-        },
-        "dense_h_to_4h": {
-            "type": "W8X8",
-            "act_scale": False
-        },
-        "dense_4h_to_h": {
-            "type": "W8X8",
-            "act_scale": False
-        }
-    }
-    quantize_cfg = {}
     input_names = [
         "input_ids",
         "attention_mask",
@@ -122,10 +103,10 @@ def export_onnx(
     ]
     output_names = ["logits", "out_key_values"]
     dynamic_axes = {
-        "input_ids": {0: "batch_size", 1: "seq_length"},
-        "attention_mask": {0: "batch_size", 1: "seq_length+kv_len"},
-        "position_ids": {0: "batch_size", 1: "seq_length"},
-        "past_key_values": {2: "batch_size", 4: "kv_len"},
+        "input_ids": {0: "batch_size", 3: "seq_length"},
+        "attention_mask": {0: "batch_size", 3: "seq_length+kv_len"},
+        "position_ids": {0: "batch_size", 3: "seq_length"},
+        "past_key_values": {0: "batch_size", 3: "kv_len"},
     }
     batch_size = 1
     seq_len = 1
@@ -145,6 +126,17 @@ def export_onnx(
         ),
         dtype=torch_dtype
     ).to(device)
+    # convert [batch, w] to [batch, fake_c, fake_h, w]
+    input_ids = input_ids.unsqueeze(1).unsqueeze(2)
+    attention_mask = attention_mask.unsqueeze(1).unsqueeze(2)
+    position_ids = position_ids.unsqueeze(1).unsqueeze(2)
+    # convert kv_cache to [batch, fake_c, fake_h, w]
+    past_key_values = past_key_values.view(
+        1, # batch_size
+        -1, # num_hidden_layers * 2 * num_key_value_heads
+        past_key_values.size(-2), # kv_cache_length
+        past_key_values.size(-1) # per_head_dim
+    )
     input_args = (
         input_ids,
         attention_mask,

@@ -42,12 +42,12 @@ else:
     raise Exception("not support dtype, only support float16/float32")
 
 
-def create_kv_cache(config: Qwen2Config, kv_cache_length=1024):
+def create_kv_cache(config: Qwen2Config, kv_cache_length=1024, batch_size=1):
     return torch.zeros(
         [
             config.num_hidden_layers,
             2,
-            1,
+            batch_size,
             config.num_key_value_heads,
             kv_cache_length,
             config.hidden_size // config.num_attention_heads
@@ -113,14 +113,22 @@ print("raw_text", text)
 input_ids = tokenizer(
     [text], return_tensors="pt"
 )["input_ids"].to(device_str)
-print("input_ids", input_ids)
 kv_cache1 = create_kv_cache(model_config)
-now_kv_cache, attn_mask, position_ids = get_inputs(kv_cache1, 2, )
-print("now_kv_cache shape: ", now_kv_cache.shape)
+now_kv_cache, attn_mask, position_ids = get_inputs(kv_cache1, 2)
+# convert [batch, w] to [batch, fake_c, fake_h, w]
+input_ids = input_ids.unsqueeze(1).unsqueeze(2)
+attn_mask = attn_mask.unsqueeze(1).unsqueeze(2)
+position_ids = position_ids.unsqueeze(1).unsqueeze(2)
+# convert kv_cache to [batch, fake_c, fake_h, w]
+now_kv_cache = now_kv_cache.view(1, -1, now_kv_cache.size(-2), now_kv_cache.size(-1))
+# print shape
+input_ids =  input_ids[:, :, :, :2]
+print("input_ids.shape", input_ids.shape)
 print("attention_mask shape: ", attn_mask.shape)
 print("position_ids shape: ", position_ids.shape)
+print("now_kv_cache shape: ", now_kv_cache.shape)
 outputs = model.forward(
-    input_ids[:, :2],
+    input_ids,
     attn_mask,
     position_ids,
     now_kv_cache,
@@ -129,13 +137,13 @@ outputs = model.forward(
 )
 print("==== pytorch runtime ====")
 print("output length: ", len(outputs))
-logits = outputs[0][:, :-1, :]  # 1: -0.10800
+logits = outputs[0][:, :1, :, :]  # 1: -0.10800
 # logits = outputs[0][:, -1:, :]  # 2: -0.008756
 
 print("logits shape: ", logits.shape)
 print("logits mean: ", logits.float().mean().item())
 print("logits max: ", logits.float().max().item())
-new_kv_cache = outputs[1][:, :, :, :, :-1, :]  # 1: 0.0009:
+new_kv_cache = outputs[1][:, :, :1, :]  # 1: 0.0009:
 # new_kv_cache = outputs[1][:, :, :, :, -1:, :]  # 2: 0.003526
 
 print("new_kv_cache: shape:", new_kv_cache.shape)

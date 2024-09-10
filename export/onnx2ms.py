@@ -10,7 +10,7 @@ project_dir = os.path.dirname(now_dir)
 output_dir = os.path.join(project_dir, "output")
 if not os.path.exists(output_dir):
     os.mkdir(output_dir)
-onnx_model_dir = os.path.join(output_dir, "onnx2")
+onnx_model_dir = os.path.join(output_dir, "onnx")
 if not os.path.exists(onnx_model_dir):
     os.mkdir(onnx_model_dir)
 model_dir = os.path.join(output_dir, "model")
@@ -19,10 +19,11 @@ if not os.path.exists(model_dir):
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    '--soc_version',
+    "--dtype" ,
     type=str,
-    default="auto",
-    help="NPU full name, like Ascend310B1、Ascend310B4、Ascend310P1、Ascend910A、Ascend910B..., default is `auto`, will auto detect soc version.",
+    help="support float16/float32/int8..., if use CPU, only support fp32",
+    choices=["float16", "float", "int8", "uint8", "int32", "int64", "default"],
+    default="default",
 )
 parser.add_argument(
     '--hf_model_dir',
@@ -37,10 +38,32 @@ parser.add_argument(
     default=os.path.join(onnx_model_dir, "qwen2_1.5b_chat.onnx")
 )
 parser.add_argument(
-    "--om_model_path",
-    help=".om model path",
+    "--ms_model_path",
+    help=".ms/.mindir model path",
     type=str,
     default= os.path.join(model_dir, "qwen2_1.5b_chat")
+)
+parser.add_argument(
+    "--save_type",
+    help="The type of saved model.",
+    choices=["mindir", "mindir_lite"],
+    type=str,
+    default="mindir_lite"
+)
+
+parser.add_argument(
+    "--ms_optimize",
+    help="optimize in MindSpore with gpu/cpu/npu",
+    choices=["none", "general", "gpu_oriented", "ascend_oriented"],
+    type=str,
+    default="general",
+)
+parser.add_argument(
+    "--optimize_transformer",
+    help="whether enable Fast-Transformer fusion",
+    choices=["true", "false"],
+    type=str,
+    default="false"
 )
 parser.add_argument(
     "--max_batch",
@@ -55,7 +78,7 @@ parser.add_argument(
         "the number must by 2^xx, like 1, 2, 4, 8, 16, 32, 64, 128, 256... "
         "Note! The higher this number, the longer it will take to compile.",
     type=int,
-    default=8,
+    default=1,
 )
 parser.add_argument(
     "--kv_cache_length",
@@ -66,39 +89,6 @@ parser.add_argument(
 
 
 args = parser.parse_args()
-
-
-def get_soc_version():
-    """
-    _summary_
-    获取芯片信息，返回具体的芯片型号
-    Returns:
-        _type_: _description_
-    """
-    max_len = 512
-    rtsdll = ctypes.CDLL(f"libruntime.so")
-    c_char_t = ctypes.create_string_buffer(b"\xff" * max_len, max_len)
-    rtsdll.rtGetSocVersion.restype = ctypes.c_uint64
-    rt_error = rtsdll.rtGetSocVersion(c_char_t, ctypes.c_uint32(max_len))
-    if rt_error:
-        print("rt_error:", rt_error)
-        return ""
-    soc_full_name = c_char_t.value.decode("utf-8")
-    find_str = "Short_SoC_version="
-    ascend_home_dir = os.environ.get("ASCEND_HOME_PATH")
-    assert ascend_home_dir is not None, \
-        print("ASCEND_HOME_PATH is None, you need run `source /usr/local/Ascend/ascend-toolkit/set_env.sh`")
-    with open(f"{ascend_home_dir}/compiler/data/platform_config/{soc_full_name}.ini", "r") as f:
-        for line in f:
-            if find_str in line:
-                start_index = line.find(find_str)
-                soc_short_name = line[start_index + len(find_str):].strip()
-                return {
-                   "soc_full_name": soc_full_name,
-                   "soc_short_name": soc_short_name
-                }
-    raise Exception("can't get you soc version")
-
 max_batch = args.max_batch
 model_config = Qwen2Config.from_pretrained(args.hf_model_dir)
 num_hidden_layers = model_config.num_hidden_layers
@@ -121,14 +111,20 @@ attention_length_range = [
 position_length_range = prefill_length_range
 input_ids_shape = [
     f"1~{max_batch}" if max_batch > 1 else "1",
+    "1",
+    "1",
     "-1" if max_prefill_length > 1 else "1",
 ]
 attention_mask_shape = [
     f"1~{max_batch}" if max_batch > 1 else "1",
+    "1",
+    "1",
     "-1" if max_prefill_length > 1 else str(1 + kv_cache_length)
 ]
 position_ids_shape = [
     f"1~{max_batch}" if max_batch > 1 else "1",
+    "1",
+    "1",
     "-1" if max_prefill_length > 1 else "1"
 ]
 dynamic_dims = []
@@ -138,30 +134,26 @@ for dynamic_dim in zip(
     dynamic_dim = [str(dim) for dim in dynamic_dim]
     dynamic_dims.append(",".join(dynamic_dim))
 past_key_values_shape = [
-    num_hidden_layers,
-    2,
     f"1~{max_batch}" if max_batch > 1 else "1",
-    num_key_value_heads,
+    num_hidden_layers * 2 * num_key_value_heads,
     kv_cache_length,
     per_head_dim
 ]
 past_key_values_shape = [str(x) for x in past_key_values_shape]
-if args.soc_version == "auto":
-    print("[INFO] soc_version is `auto`, will auto detect soc version")
-    soc_dict = get_soc_version()
-    print("[INFO] {}".format(soc_dict))
-    soc_version = soc_dict["soc_full_name"]
-else:
-    soc_version = args.soc_version
 command_lines = [
-    "atc",
-    "--framework=5",
-    '--model="{}"'.format(args.onnx_model_path),
-    '--output="{}"'.format(args.om_model_path),
-    "--soc_version={}".format(soc_version),
-    "--precision_mode=must_keep_origin_dtype",
-    "--input_format=ND",
-    '--input_shape="input_ids:{};attention_mask:{};position_ids:{};past_key_values:{}"'.format(
+    "converter_lite",
+    "--fmk=ONNX",
+    # "--device=Ascend", # 支持在Ascend上运行，以后再加上
+    # "--fp16=on"  # 支持fp16运行，先关上，等CPU验证完再打开
+    '--modelFile="{}"'.format(args.onnx_model_path),
+    '--outputFile="{}"'.format(args.ms_model_path),
+    # "--saveType={}".format(args.save_type.upper()),
+    "--inputDataFormat=NCHW",  # 华为手机上面只支持NCHW，同时mindspore_lite也只支持NCHW,相关链接：https://developer.huawei.com/consumer/cn/doc/harmonyos-faqs-V5/hiaifoundation-faqs-3-V5
+    "--inputDataType={}".format(args.dtype.upper()),
+    "--optimize={}".format(args.ms_optimize),
+    "--optimizeTransformer={}".format(args.optimize_transformer),
+    # "--precision_mode=must_keep_origin_dtype",
+    '--inputShape="input_ids:{};attention_mask:{};position_ids:{};past_key_values:{}"'.format(
         ",".join(input_ids_shape),
         ",".join(attention_mask_shape),
         ",".join(position_ids_shape),
