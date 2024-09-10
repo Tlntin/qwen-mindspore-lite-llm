@@ -143,13 +143,13 @@ class Inference:
         )
         input_ids = self.tokenizer(
             [text], return_tensors="np"
-        )["input_ids"].astype(np.int64).reshape(1, -1)
-        input_ids = input_ids[:, -self.max_input_length:]
+        )["input_ids"].astype(np.int64).reshape(1, 1, 1, -1)
+        input_ids = input_ids[:, :, :, -self.max_input_length:]
         # print("input_ids shape: ", input_ids.shape)
         self.first = False
         ids_list = []
         text_length = 0
-        input_length = input_ids.shape[1]
+        input_length = input_ids.shape[-1]
         if do_speed_test:
             start = time.time()
             first_token_latency = 0
@@ -175,20 +175,20 @@ class Inference:
                 show_progress=prefill_show_progress
             )[0]
             input_ids = self.sample_logits(
-                logits[0][-1:],
+                logits[0, -1:, :, 0],
                 self.sampling_method,
                 sampling_value,
                 temperature
             )
-            input_ids = input_ids.reshape(1, -1)
+            input_ids = input_ids.reshape(1, 1, 1, -1)
             if do_speed_test and i == 0:
                 first_token_latency = time.time() - start
             with self.lock:
                 # early stop
-                if input_ids[0] == self.tokenizer.eos_token_id:
+                if input_ids[0][0][0] == self.tokenizer.eos_token_id:
                     self.state['message'],self.state['isEnd'] = self.tokenizer.decode(ids_list),True
                     break
-                ids_list.append(input_ids[0].item())
+                ids_list.append(input_ids[0][0][0].item())
                 text_out = self.tokenizer.decode(ids_list)
                 # stop_word = is_stop_word_or_prefix(text_out, ["[|Human|]", "[|AI|]"])
                 self.state['message'] = text_out

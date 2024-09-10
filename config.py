@@ -47,11 +47,10 @@ class InferenceConfig:
         self.hidden_size = self.model_config.hidden_size # hidden_dim
         self.num_attention_heads = self.model_config.num_attention_heads
         self.per_head_dim = self.hidden_size // self.num_attention_heads # head_dim
+        # 下面的kv-cache shape要改成NCHW格式的
         self.past_key_value_shape = (
-            self.num_hidden_layers,
-            2,
             self.max_batch,
-            self.num_key_value_heads,
+            self.num_hidden_layers * 2 * self.num_key_value_heads,
             self.kv_cache_length,
             self.per_head_dim
         )

@@ -2,6 +2,7 @@ import numpy as np
 from typing import Optional,Tuple,List
 from config import InferenceConfig
 # 对KV缓存和输出输出格式进行管理
+# 针对NCHW类型的KV-Cache做改造
 class KVCacheManger:
     def __init__(self, config: InferenceConfig) -> None:
         self.num_key_value_heads = config.num_key_value_heads # head len
@@ -57,22 +58,21 @@ class KVCacheManger:
 
         """
         self.kv_cache shape (
-            self.num_hidden_layers,
-            2,
             1,
-            self.num_key_value_heads,
+            self.num_hidden_layers * 2 * self.num_key_value_heads,
             self.kv_cache_length,
             self.per_head_dim
         )
         """ 
-        cache = self.kv_cache[:, :, :, :, :self.past_kv_size]
-        mask = np.ones((1,self.past_kv_size + seq_len),dtype=np.int64)
-        mask[:, self.real_kv_size: self.past_kv_size] = 0
+        cache = self.kv_cache[:, :, :self.past_kv_size]
+        # mask and pos_id all the [N, C, H, W] format
+        mask = np.ones((1, 1, 1, self.past_kv_size + seq_len),dtype=np.int64)
+        mask[:, :, :, self.real_kv_size: self.past_kv_size] = 0
         pos_id =np.arange(
             self.input_pos, 
             self.input_pos + seq_len,
             dtype=np.int64
-        ).reshape(1,-1)
+        ).reshape(1, 1, 1, -1)
         return cache, mask, pos_id
     
     def reset(self,num=1):
@@ -122,8 +122,8 @@ class BasicKVCache(KVCacheManger):
             temp_shape = list(self.past_key_value_shape)
             temp_shape[-2] = -1
             new_kv_cache = new_kv_cache.reshape(temp_shape)
-            self.kv_cache[:, :, :, :, self.past_kv_size:self.past_kv_size + seq_len] = \
-                new_kv_cache[:, :, :, :, 0:seq_len]
+            self.kv_cache[:, :, self.past_kv_size:self.past_kv_size + seq_len] = \
+                new_kv_cache[:, :, 0:seq_len]
         self.past_kv_size += seq_len
         self.input_pos += seq_len
         self.real_kv_size += seq_len
@@ -163,8 +163,8 @@ class FixSizeKVCache(KVCacheManger):
             temp_shape = list(self.past_key_value_shape)
             temp_shape[-2] = -1
             new_kv_cache = new_kv_cache.reshape(temp_shape)
-            self.kv_cache[:, :, :, :, self.real_kv_size: self.real_kv_size + seq_len] = \
-                new_kv_cache[:, :, :, :, 0: seq_len]
+            self.kv_cache[:, :, self.real_kv_size: self.real_kv_size + seq_len] = \
+                new_kv_cache[:, :, 0: seq_len]
         self.real_kv_size += seq_len
 
 class FixSizeStreamLLM(KVCacheManger):
@@ -203,8 +203,8 @@ class FixSizeStreamLLM(KVCacheManger):
         """
 
         if self.cache_format == 'huggingface-tensor': #[n_layer,2,batch_size,head_num,len,head_dim]
-            self.kv_cache[:, :, :, :, self.past_len: self.past_len + len] = \
-                new_kv_cache[:, :, :, :, begin: begin + len]	
+            self.kv_cache[:, :, self.past_len: self.past_len + len] = \
+                new_kv_cache[:, :,  begin: begin + len]	
         if self.cache_format =='seq_nhead_headdim': # [batch, n_layers, seq_len, n_heads, head_dim]
             self.kv_cache[0][:, :, self.past_len: self.past_len + len] = \
                 new_kv_cache[0][:, :, begin : begin+len]

@@ -66,15 +66,22 @@
       --dtype="float16" \
       --onnx_model_path="./output/onnx/qwen2_1.5b_chat.onnx"
     ```
+4. 测试使用onnx对话，用于验证onnx整体效果，若无明显乱码则说明正常。（注意：由于是CPU运行，所以速度较慢，请耐心等待）
+  ```bash
+  python3 ./cli_chat.py \
+    --session_type=onnx \
+    --hf_model_dir="./download/Qwen2-1.5B-Instruct" \
+    --onnx_model_path="./output/onnx/qwen2_1.5b_chat.onnx"
+  ```
 
-4. （可选？）改变onnx结构，目前导出的Trilu算子和Cast算子有些问题，atc命令无法识别，需要改一下结构。
+5. （可选？）改变onnx结构，目前导出的Trilu算子和Cast算子有些问题，atc命令无法识别，需要改一下结构。
   ```bash
   python3 export/change_node.py \
     --input_model_path="./output/onnx/qwen2_1.5b_chat.onnx" \
     --output_model_path="./output/onnx2/qwen2_1.5b_chat.onnx"
   ```
 
-5. 将onnx转成MindSpore-Lite的文件。
+6. 将onnx转成MindSpore-Lite的文件。
   - 对于CPU转成的onnx，建议使用下面的命令
     ```bash
     python3 export/onnx2ms.py \
@@ -107,13 +114,7 @@
       | ascend_oriented | true                 | float16  | NPU      | 3.4GB        |
       | ascend_oriented | false                | float16  | NPU      | 3.4GB   |
 
-6. 测试使用onnx对话（注意：由于是CPU运行，所以速度较慢，请耐心等待）
-  ```bash
-  python3 ./cli_chat.py \
-    --session_type=onnx \
-    --hf_model_dir="./download/Qwen2-1.5B-Instruct" \
-    --onnx_model_path="./output/onnx/qwen2_1.5b_chat.onnx"
-  ```
+
 
 7. 测试使用mindspore-lite生成的模型文件对话。
 

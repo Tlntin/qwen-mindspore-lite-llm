@@ -113,8 +113,10 @@ print("raw_text", text)
 input_ids = tokenizer(
     [text], return_tensors="pt"
 )["input_ids"].to(device_str)
+
+test_seq_len = 2
 kv_cache1 = create_kv_cache(model_config)
-now_kv_cache, attn_mask, position_ids = get_inputs(kv_cache1, 2)
+now_kv_cache, attn_mask, position_ids = get_inputs(kv_cache1, test_seq_len)
 # convert [batch, w] to [batch, fake_c, fake_h, w]
 input_ids = input_ids.unsqueeze(1).unsqueeze(2)
 attn_mask = attn_mask.unsqueeze(1).unsqueeze(2)
@@ -122,7 +124,7 @@ position_ids = position_ids.unsqueeze(1).unsqueeze(2)
 # convert kv_cache to [batch, fake_c, fake_h, w]
 now_kv_cache = now_kv_cache.view(1, -1, now_kv_cache.size(-2), now_kv_cache.size(-1))
 # print shape
-input_ids =  input_ids[:, :, :, :2]
+input_ids =  input_ids[:, :, :, :test_seq_len]
 print("input_ids.shape", input_ids.shape)
 print("attention_mask shape: ", attn_mask.shape)
 print("position_ids shape: ", position_ids.shape)
