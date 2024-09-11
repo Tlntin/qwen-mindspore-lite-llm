@@ -18,9 +18,9 @@ def parser_args():
     parser.add_argument(
         "--session_type",
         type=str,
-        help="acl or onnx",
-        choices=["acl", "onnx"],
-        default="onnx",
+        help="ms_lite(mindspore-lite) or onnx",
+        choices=["ms_lite", "onnx"],
+        default="ms-lite",
     )
     parser.add_argument(
         '--onnx_model_path',
@@ -29,10 +29,10 @@ def parser_args():
         default=os.path.join(project_dir, "output", "onnx", "qwen2_1.5b_chat.onnx")
     )
     parser.add_argument(
-        "--om_model_path",
-        help="mindspore model path",
+        "--ms_model_path",
+        help="mindspore-lite model path",
         type=str,
-        default= os.path.join(project_dir, "output", "model", "qwen2_1.5b_chat.om")
+        default= os.path.join(project_dir, "output", "model", "qwen2_1.5b_chat_graph.mindir")
     )
     parser.add_argument(
         "--max_batch",
@@ -107,7 +107,7 @@ if __name__ == '__main__':
     max_prefill_length = 2 ** max_prefill_log2 
     config = InferenceConfig(
         hf_model_dir=args.hf_model_dir,
-        om_model_path=args.om_model_path,
+        ms_model_path=args.ms_model_path,
         onnx_model_path=args.onnx_model_path,
         session_type=args.session_type,
         max_batch=args.max_batch,

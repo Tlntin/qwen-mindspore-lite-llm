@@ -5,7 +5,7 @@ from typing import List
 import math
 import time
 import sys
-from utils.engine import ACLModel, init_resource, destroy_resource
+# from utils.engine import ACLModel, init_resource, destroy_resource
 import onnxruntime as ort
 from tqdm import tqdm, trange
 
@@ -22,8 +22,8 @@ class Session:
     def fromConfig(config:InferenceConfig) -> 'Session':
         if config.session_type == "onnx":
             return OnnxSession(config)
-        elif config.session_type=='acl':
-            return AclSession(config)
+        # elif config.session_type=='acl':
+        #     return AclSession(config)
         else:
             return None
     
@@ -109,7 +109,7 @@ class CANNOnnxSession(Session):
         return (logitsts, new_kv_cache)
 """
 
-class AclSession(Session):
+class MSLiteSession(Session):
     context = None
     def __init__(self, config:InferenceConfig):
         super().__init__(config)

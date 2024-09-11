@@ -10,13 +10,18 @@
 2. 下载qwen1.5/qwen2的模型，选择chat模型或者instruct模型，将其放到download文件夹，仅支持huggingface下载的模型，网络不好的可以用镜像站：https://hf-mirror.com/Qwen
 
 3. 需要已经配置好mindspore-lite的环境，可以参考下面这个环境配置。
-    ```bash
-    # mindspore-lite
-    export LITE_HOME=/usr/local/mindspore-lite
-    export PATH=$PATH:${LITE_HOME}/tools/converter/converter:${LITE_HOME}/tools/benchmark
-    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${LITE_HOME}/tools/converter/lib:${LITE_HOME}/runtime/lib:${LITE_HOME}/runtime/third_party/dnnl
-    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${LITE_HOME}/runtime/third_party/glog:${LITE_HOME}/runtime/third_party/libjpeg-turbo/lib:${LITE_HOME}/runtime/third_party/securec
-    ```
+  ```bash
+  # mindspore-lite
+  export LITE_HOME=/usr/local/mindspore-lite
+  export PATH=$PATH:${LITE_HOME}/tools/converter/converter:${LITE_HOME}/tools/benchmark
+  export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${LITE_HOME}/tools/converter/lib:${LITE_HOME}/runtime/lib:${LITE_HOME}/runtime/third_party/dnnl
+  export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${LITE_HOME}/runtime/third_party/glog:${LITE_HOME}/runtime/third_party/libjpeg-turbo/lib:${LITE_HOME}/runtime/third_party/securec
+  ```
+4. 并且按照了mindspore-lite python包。[下载页面](https://www.mindspore.cn/lite/docs/zh-CN/r2.3.1/use/downloads.html)，下面是一个参考安装指令。
+  ```bash
+  pip install https://ms-release.obs.cn-north-4.myhuaweicloud.com/2.3.1/MindSpore/lite/release/l
+inux/aarch64/cloud_fusion/python310/mindspore_lite-2.3.1-cp310-cp310-linux_aarch64.whl
+  ```
 
 
 ### 详细运行步骤
@@ -32,8 +37,8 @@
     python3 export/export_onnx.py \
       --device_str="npu" \
       --dtype="float16" \
-      --hf_model_dir="./download/Qwen2-1.5B-Instruct" \
-      --onnx_model_path="./output/onnx/qwen2_1.5b_chat.onnx" \
+      --hf_model_dir="./download/Qwen2-0.5B-Instruct" \
+      --onnx_model_path="./output/onnx/qwen2_0.5b_chat.onnx" \
       --kv_cache_length=1024
     ```
   - 对于CPU设备(CPU导出的东西仅做代码结构验证，推荐还是用NPU导出更好)
@@ -41,8 +46,8 @@
     python3 export/export_onnx.py \
       --device_str="cpu" \
       --dtype="float32" \
-      --hf_model_dir="./download/Qwen2-1.5B-Instruct" \
-      --onnx_model_path="./output/onnx/qwen2_1.5b_chat.onnx" \
+      --hf_model_dir="./download/Qwen2-0.5B-Instruct" \
+      --onnx_model_path="./output/onnx/qwen2_0.5b_chat.onnx" \
       --kv_cache_length=1024
     ```
 
@@ -52,43 +57,44 @@
     python3 export/test_pytorch_run.py \
       --device_str="cpu" \
       --dtype="float32" \
-      --hf_model_dir="./download/Qwen2-1.5B-Instruct"
+      --hf_model_dir="./download/Qwen2-0.5B-Instruct"
     ```
   - 再用cpu跑onnx
     ```bash
     python3 export/test_onnx_run.py \
       --dtype="float32" \
-      --onnx_model_path="./output/onnx/qwen2_1.5b_chat.onnx"
+      --hf_model_dir="./download/Qwen2-0.5B-Instruct" \
+      --onnx_model_path="./output/onnx/qwen2_0.5b_chat.onnx"
     ```
   - 也可以用npu开发板上面的cpu跑onnx（一般测试结构，统一用上面的cpu会好一些）
     ```bash
     python3 export/test_onnx_run.py \
       --dtype="float16" \
-      --onnx_model_path="./output/onnx/qwen2_1.5b_chat.onnx"
+      --hf_model_dir="./download/Qwen2-0.5B-Instruct" \
+      --onnx_model_path="./output/onnx/qwen2_0.5b_chat.onnx"
     ```
 4. 测试使用onnx对话，用于验证onnx整体效果，若无明显乱码则说明正常。（注意：由于是CPU运行，所以速度较慢，请耐心等待）
   ```bash
   python3 ./cli_chat.py \
     --session_type=onnx \
-    --hf_model_dir="./download/Qwen2-1.5B-Instruct" \
-    --onnx_model_path="./output/onnx/qwen2_1.5b_chat.onnx"
+    --hf_model_dir="./download/Qwen2-0.5B-Instruct" \
+    --onnx_model_path="./output/onnx/qwen2_0.5b_chat.onnx"
   ```
 
 5. （可选？）改变onnx结构，目前导出的Trilu算子和Cast算子有些问题，atc命令无法识别，需要改一下结构。
   ```bash
   python3 export/change_node.py \
-    --input_model_path="./output/onnx/qwen2_1.5b_chat.onnx" \
-    --output_model_path="./output/onnx2/qwen2_1.5b_chat.onnx"
+    --input_model_path="./output/onnx/qwen2_0.5b_chat.onnx" \
+    --output_model_path="./output/onnx2/qwen2_0.5b_chat.onnx"
   ```
 
 6. 将onnx转成MindSpore-Lite的文件。
   - 对于CPU转成的onnx，建议使用下面的命令
     ```bash
     python3 export/onnx2ms.py \
-      --dtype="default" \
-      --hf_model_dir="${PWD}/download/Qwen2-1.5B-Instruct" \
-      --onnx_model_path="${PWD}/output/onnx/qwen2_1.5b_chat.onnx" \
-      --ms_model_path="${PWD}/output/model/qwen2_1.5b_chat" \
+      --hf_model_dir="${PWD}/download/Qwen2-0.5B-Instruct" \
+      --onnx_model_path="${PWD}/output/onnx/qwen2_0.5b_chat.onnx" \
+      --ms_model_path="${PWD}/output/model/qwen2_0.5b_chat" \
       --save_type="mindir_lite" \
       --ms_optimize="general" \
       --kv_cache_length=1024
@@ -96,13 +102,12 @@
   - 对于NPU转成的onnx，建议使用下面的命令
     ```bash
     python3 export/onnx2ms.py \
-      --dtype="float16" \
-      --hf_model_dir="${PWD}/download/Qwen2-1.5B-Instruct" \
-      --onnx_model_path="${PWD}/output/onnx/qwen2_1.5b_chat.onnx" \
-      --ms_model_path="${PWD}/output/model/qwen2_1.5b_chat" \
+      --fp16="on" \
+      --hf_model_dir="${PWD}/download/Qwen2-0.5B-Instruct" \
+      --onnx_model_path="${PWD}/output/onnx/qwen2_0.5b_chat.onnx" \
+      --ms_model_path="${PWD}/output/model/qwen2_0.5b_chat" \
       --save_type="mindir_lite" \
       --ms_optimize="ascend_oriented" \
-      --optimize_transformer="true" \
       --kv_cache_length=1024
     ```
     - Qwen2-1.5B-Instruct原始模型大小2.9GB，转成的原始onnx文件大小2.9GB。转换后的mindIR文件大小参考。

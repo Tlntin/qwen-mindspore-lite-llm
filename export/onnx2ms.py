@@ -19,11 +19,26 @@ if not os.path.exists(model_dir):
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    "--dtype" ,
+    "--input_data_type" ,
     type=str,
-    help="support float16/float32/int8..., if use CPU, only support fp32",
+    help="Data type of input tensors, default is same with the type defined in model. FLOAT16 | FLOAT | INT8 | UINT8 | INT32 | INT64 | DEFAULT",
     choices=["float16", "float", "int8", "uint8", "int32", "int64", "default"],
     default="default",
+)
+# 转.om模型的时候才需要device参数，暂时注释掉
+# parser.add_argument(
+#     "--device",
+#     type=str,
+#     help="Set the target device, support Ascend",
+#     choices=["Ascend", None],
+#     default=None
+# )
+parser.add_argument(
+   "--fp16",
+   type=str,
+   choices=["on", "off"],
+   help="Serialize const tensor in Float16 data type, only effective for const tensor in Float32 data type.",
+   default="off"
 )
 parser.add_argument(
     '--hf_model_dir',
@@ -143,13 +158,12 @@ past_key_values_shape = [str(x) for x in past_key_values_shape]
 command_lines = [
     "converter_lite",
     "--fmk=ONNX",
-    # "--device=Ascend", # 支持在Ascend上运行，以后再加上
-    # "--fp16=on"  # 支持fp16运行，先关上，等CPU验证完再打开
+    "--fp16={}".format(args.fp16),  # 支持fp16运行，先关上，等CPU验证完再打开
     '--modelFile="{}"'.format(args.onnx_model_path),
     '--outputFile="{}"'.format(args.ms_model_path),
-    # "--saveType={}".format(args.save_type.upper()),
+    "--saveType={}".format(args.save_type.upper()),
     "--inputDataFormat=NCHW",  # 华为手机上面只支持NCHW，同时mindspore_lite也只支持NCHW,相关链接：https://developer.huawei.com/consumer/cn/doc/harmonyos-faqs-V5/hiaifoundation-faqs-3-V5
-    "--inputDataType={}".format(args.dtype.upper()),
+    "--inputDataType={}".format(args.input_data_type.upper()),
     "--optimize={}".format(args.ms_optimize),
     "--optimizeTransformer={}".format(args.optimize_transformer),
     # "--precision_mode=must_keep_origin_dtype",
@@ -160,7 +174,15 @@ command_lines = [
         ",".join(past_key_values_shape)
     ),
 ]
+# if args.device is not None:
+#     # "--device=Ascend", # 支持在Ascend上运行
+#     command_lines.insert(
+#         2,
+#         "--device={}".format(args.device)
+#     )
+
 if max_prefill_length > 1:
+    # todo 支持动态shape输入，后面再看看怎么实现咯
     command_lines.append(
         "--dynamic_dims \"{}\"".format(";".join(dynamic_dims))
     )

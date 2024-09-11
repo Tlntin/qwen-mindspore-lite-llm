@@ -6,9 +6,9 @@ class InferenceConfig:
     def __init__(
         self,
         hf_model_dir: str,
-        om_model_path: str,
+        ms_model_path: str,
         onnx_model_path: str,
-        session_type: str = "acl", # 支持acl和onnx两种，acl即Ascend C Language
+        session_type: str = "ms_lite", # 支持ms_lite和onnx两种，ms_lite即MindSpore-Lite
         device_id: int = 0,
         sampling_method: str = "top_p", # 支持 greedy, top_p, top_k
         sampling_value: float = 0.8,
@@ -24,11 +24,11 @@ class InferenceConfig:
     ):
         self.tokenizer_dir = hf_model_dir
         self.session_type = session_type
-        if self.session_type == "acl":
-            assert os.path.exists(om_model_path), print(om_model_path, "not exists")
+        if self.session_type == "ms_lite":
+            assert os.path.exists(ms_model_path), print(ms_model_path, "not exists")
         elif self.session_type == "onnx":
             assert os.path.exists(onnx_model_path), print(onnx_model_path, "not exists")
-        self.om_model_path = om_model_path
+        self.ms_model_path = ms_model_path
         self.onnx_model_path = onnx_model_path
         self.device_id = device_id
         self.sampling_method = sampling_method
