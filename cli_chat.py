@@ -10,29 +10,36 @@ project_dir = os.path.dirname(os.path.abspath(__file__))
 def parser_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        "--dtype",
+        type=str,
+        help="float16 or float32",
+        choices=["float16", "float32"],
+        default="float32",
+    )
+    parser.add_argument(
         '--hf_model_dir',
         type=str,
         help="model and tokenizer path, only support huggingface model",
-        default=os.path.join(project_dir, "download", "Qwen2-1.5B-Instruct")
+        default=os.path.join(project_dir, "download", "Qwen2-0.5B-Instruct")
     )
     parser.add_argument(
         "--session_type",
         type=str,
         help="ms_lite(mindspore-lite) or onnx",
         choices=["ms_lite", "onnx"],
-        default="ms-lite",
+        default="ms_lite",
     )
     parser.add_argument(
         '--onnx_model_path',
         type=str,
         help="onnx_model_path",
-        default=os.path.join(project_dir, "output", "onnx", "qwen2_1.5b_chat.onnx")
+        default=os.path.join(project_dir, "output", "onnx", "qwen2_0.5b_chat.onnx")
     )
     parser.add_argument(
         "--ms_model_path",
         help="mindspore-lite model path",
         type=str,
-        default= os.path.join(project_dir, "output", "model", "qwen2_1.5b_chat_graph.mindir")
+        default= os.path.join(project_dir, "output", "model", "qwen2_0.5b_chat.ms")
     )
     parser.add_argument(
         "--max_batch",
@@ -115,6 +122,7 @@ if __name__ == '__main__':
         max_input_length=args.max_input_length,
         kv_cache_length=args.max_output_length,
         max_prefill_length=max_prefill_length,
+        dtype=args.dtype,
     )
     # main()
     inference_cli()

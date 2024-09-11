@@ -3,10 +3,7 @@ from utils.kvcache import create_kv_cache
 import numpy as np
 from typing import List
 import math
-import time
-import sys
-# from utils.engine import ACLModel, init_resource, destroy_resource
-import onnxruntime as ort
+from utils.engine import MindSporeLiteModel
 from tqdm import tqdm, trange
 
 
@@ -22,8 +19,8 @@ class Session:
     def fromConfig(config:InferenceConfig) -> 'Session':
         if config.session_type == "onnx":
             return OnnxSession(config)
-        # elif config.session_type=='acl':
-        #     return AclSession(config)
+        elif config.session_type=='ms_lite':
+            return MSLiteSession(config)
         else:
             return None
     
@@ -111,23 +108,18 @@ class CANNOnnxSession(Session):
 
 class MSLiteSession(Session):
     context = None
-    def __init__(self, config:InferenceConfig):
+    def __init__(self, config: InferenceConfig):
         super().__init__(config)
         self.device_id = config.device_id
-        self.context = init_resource(self.device_id)
-        self.model = ACLModel(config, self.context)
+        self.model = MindSporeLiteModel(config)
         self.max_batch = config.max_batch
         self.input_ids = np.zeros((1,16),dtype=np.int64)
-        self.kv_cache.kv_cache = self.model.kv_cache
+        # self.kv_cache.kv_cache = self.model.kv_cache
         self.max_prefill_length = config.max_prefill_length
         self.prefill_log2_number = int(math.log2(self.max_prefill_length))
         self.prefill_log2_list = list(range(self.prefill_log2_number, -1, -1))
         self.prefill_log2_list = [2**index for index in self.prefill_log2_list]
         
-    
-    def __del__(self):
-        destroy_resource(self.device_id, self.context)
-    
     def decompose_number(self, n, start_index=0):
         """
         将数字n分解成若干个2的指数的和，并返回这些2的指数构成的列表。
@@ -158,7 +150,7 @@ class MSLiteSession(Session):
             for seq in seq_list:
                 end_i = start_i + seq
                 logits = self.run_some(
-                    input_ids[:, start_i: end_i],
+                    input_ids[:, :, :, start_i: end_i],
                     seq,
                     is_dynamic,
                 )
@@ -172,7 +164,7 @@ class MSLiteSession(Session):
             else:
                 idx_list = range(seq_len)
             for i in idx_list:
-                logits = self.run_some(input_ids[:,i])
+                logits = self.run_some(input_ids[:, :, :, i:i+1])
         return [logits]
     
     def run_some(
@@ -187,9 +179,14 @@ class MSLiteSession(Session):
         # )
         self.run_times += seq_length 
         cache, mask, pos_ids = self.kv_cache.get_inputs(seq_length)
-        result:List[np.ndarray] = self.model.inference(
-                [input_ids, mask, pos_ids, cache], seq_length, is_dynamic
-            )
+        # mindspore lite need int32 input
+        input_ids = input_ids.astype(np.int32)
+        mask = mask.astype(np.int32)
+        pos_ids = pos_ids.astype(np.int32)
+
+        result: List[np.ndarray] = self.model.inference(
+            [input_ids, mask, pos_ids, cache], seq_length, is_dynamic
+        )
         # if self.run_times <= 20:
         #     print(" === Debug === ")
         #     print("run times: ", self.run_times) 
@@ -202,16 +199,16 @@ class MSLiteSession(Session):
         #     print("new_kv_cache: mean: ", new_kv_cache.astype(np.float32).mean().item())
         #     print("new_kv_cache: max: ", new_kv_cache.astype(np.float32).max().item())
         self.kv_cache.update(seq_length, result[1])
-        return result[0].reshape(self.max_batch, seq_length,-1)
+        return result[0]
 
-    def run_all_logits(self, input_ids: np.ndarray):
-        seq_len, i = input_ids.shape[-1], 0
-        logits = []
-        while i < seq_len:
-            end = i + 16 if i+16 < seq_len else seq_len
-            cache,mask,pos_ids = self.kv_cache.get_inputs(16)
-            self.input_ids[0:end-i] = input_ids[i:end]
-            result:List[np.ndarray] = self.model.inference([self.input_ids, mask, pos_ids, cache])
-            self.kv_cache.update(end-i,result[1])
-            logits.append(result[0][0:end-i].reshape(1,-1))
-        return [np.concatenate(logits).reshape(1,1,-1)]
+    # def run_all_logits(self, input_ids: np.ndarray):
+    #     seq_len, i = input_ids.shape[-1], 0
+    #     logits = []
+    #     while i < seq_len:
+    #         end = i + 16 if i+16 < seq_len else seq_len
+    #         cache,mask,pos_ids = self.kv_cache.get_inputs(16)
+    #         self.input_ids[0:end-i] = input_ids[i:end]
+    #         result:List[np.ndarray] = self.model.inference([self.input_ids, mask, pos_ids, cache])
+    #         self.kv_cache.update(end-i,result[1])
+    #         logits.append(result[0][0:end-i].reshape(1,-1))
+    #     return [np.concatenate(logits).reshape(1,1,-1)]

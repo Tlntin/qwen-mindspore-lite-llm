@@ -77,6 +77,7 @@ inux/aarch64/cloud_fusion/python310/mindspore_lite-2.3.1-cp310-cp310-linux_aarch
   ```bash
   python3 ./cli_chat.py \
     --session_type=onnx \
+    --dtype="float32" \
     --hf_model_dir="./download/Qwen2-0.5B-Instruct" \
     --onnx_model_path="./output/onnx/qwen2_0.5b_chat.onnx"
   ```
@@ -122,5 +123,12 @@ inux/aarch64/cloud_fusion/python310/mindspore_lite-2.3.1-cp310-cp310-linux_aarch
 
 
 7. 测试使用mindspore-lite生成的模型文件对话。
+  ```bash
+  python3 ./cli_chat.py \
+    --session_type="ms_lite" \
+    --dtype="float32" \
+    --hf_model_dir="./download/Qwen2-0.5B-Instruct" \
+    --ms_model_path="./output/model/qwen2_0.5b_chat.ms"
+  ```
 
 
