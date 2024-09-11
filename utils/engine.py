@@ -28,7 +28,7 @@ class MindSporeLiteModel:
         context = mslite.Context()
         if support_ascend:
             context.target = ["cpu", "ascend"]
-            context.ascend.precision_mode = "preferred_optimal"
+            context.ascend.precision_mode = "enforce_origin"
         else:
             context.target = ["cpu"]
         if cpu_support_fp16:    

@@ -89,40 +89,19 @@ inux/aarch64/cloud_fusion/python310/mindspore_lite-2.3.1-cp310-cp310-linux_aarch
     --output_model_path="./output/onnx2/qwen2_0.5b_chat.onnx"
   ```
 
-6. 将onnx转成MindSpore-Lite的文件。
-  - 对于CPU转成的onnx，建议使用下面的命令
-    ```bash
-    python3 export/onnx2ms.py \
-      --hf_model_dir="${PWD}/download/Qwen2-0.5B-Instruct" \
-      --onnx_model_path="${PWD}/output/onnx/qwen2_0.5b_chat.onnx" \
-      --ms_model_path="${PWD}/output/model/qwen2_0.5b_chat" \
-      --save_type="mindir_lite" \
-      --ms_optimize="general" \
-      --kv_cache_length=1024
-    ```
-  - 对于NPU转成的onnx，建议使用下面的命令
-    ```bash
-    python3 export/onnx2ms.py \
-      --fp16="on" \
-      --hf_model_dir="${PWD}/download/Qwen2-0.5B-Instruct" \
-      --onnx_model_path="${PWD}/output/onnx/qwen2_0.5b_chat.onnx" \
-      --ms_model_path="${PWD}/output/model/qwen2_0.5b_chat" \
-      --save_type="mindir_lite" \
-      --ms_optimize="ascend_oriented" \
-      --kv_cache_length=1024
-    ```
-    - Qwen2-1.5B-Instruct原始模型大小2.9GB，转成的原始onnx文件大小2.9GB。转换后的mindIR文件大小参考。
-      | ms_optimize     | optimize_transformer | 数据类型 | 设备类型 | 成品文件大小 |
-      | --------------- | -------------------- | -------- | -------- | ------------ |
-      | general         | false                | float32  | CPU      | 12GB         |
-      | general         | false                | float16  | NPU      | 6.1GB        |
-      | general         | true                 | float16  | NPU      | 6.1GB        |
-      | ascend_oriented | true                 | float16  | NPU      | 3.4GB        |
-      | ascend_oriented | false                | float16  | NPU      | 3.4GB   |
+6. 将onnx转成MindSpore-Lite的文件（推荐在NPU开发板上面转，得到的ms模型更小。）
+  ```bash
+  python3 export/onnx2ms.py \
+    --hf_model_dir="${PWD}/download/Qwen2-0.5B-Instruct" \
+    --onnx_model_path="${PWD}/output/onnx/qwen2_0.5b_chat.onnx" \
+    --ms_model_path="${PWD}/output/model/qwen2_0.5b_chat" \
+    --save_type="mindir_lite" \
+    --ms_optimize="general" \
+    --kv_cache_length=1024
+  ```
 
 
-
-7. 测试使用mindspore-lite生成的模型文件对话。
+7. 测试使用mindspore-lite生成的模型文件对话（由于Mindspore主要服务端侧CPU、NPU，对于NPU开发板，默认启用CPU，所以还是比较慢）。
   ```bash
   python3 ./cli_chat.py \
     --session_type="ms_lite" \

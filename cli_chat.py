@@ -1,10 +1,15 @@
 import sys
 import math
+import warnings
+warnings.filterwarnings("ignore", message="The value of the smallest subnormal for <class 'numpy.float64'> type is zero.")
+warnings.filterwarnings("ignore", message="The value of the smallest subnormal for <class 'numpy.float32'> type is zero.")
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 from config import InferenceConfig
 from utils.inference import Inference
 import os
+
+
 
 project_dir = os.path.dirname(os.path.abspath(__file__))
 def parser_args():
