@@ -18,9 +18,13 @@
   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${LITE_HOME}/runtime/third_party/glog:${LITE_HOME}/runtime/third_party/libjpeg-turbo/lib:${LITE_HOME}/runtime/third_party/securec
   ```
 4. 并且按照了mindspore-lite python包。[下载页面](https://www.mindspore.cn/lite/docs/zh-CN/r2.3.1/use/downloads.html)，下面是一个参考安装指令。
+ - for x86_64
   ```bash
-  pip install https://ms-release.obs.cn-north-4.myhuaweicloud.com/2.3.1/MindSpore/lite/release/l
-inux/aarch64/cloud_fusion/python310/mindspore_lite-2.3.1-cp310-cp310-linux_aarch64.whl
+  pip install https://ms-release.obs.cn-north-4.myhuaweicloud.com/2.3.1/MindSpore/lite/release/linux/x86_64/cloud_fusion/python310/mindspore_lite-2.3.1-cp310-cp310-linux_x86_64.whl
+  ```
+ - for aarch64
+  ```bash
+  pip install https://ms-release.obs.cn-north-4.myhuaweicloud.com/2.3.1/MindSpore/lite/release/linux/aarch64/cloud_fusion/python310/mindspore_lite-2.3.1-cp310-cp310-linux_aarch64.whl
   ```
 
 
