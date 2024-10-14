@@ -9,3 +9,4 @@ __pycache__/
 export/*.json
 *.json
 air_weight/
+*.whl
