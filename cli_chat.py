@@ -41,6 +41,18 @@ def parser_args():
         default=os.path.join(project_dir, "output", "onnx", "qwen2_0.5b_chat.onnx")
     )
     parser.add_argument(
+        '--cpu_thread',
+        type=int,
+        help="thread for cpu",
+        default=4,
+    )
+    parser.add_argument(
+        '--cpu_support_fp16',
+        type=bool,
+        help="cpu support float16?",
+        default=False
+    )
+    parser.add_argument(
         "--ms_model_path",
         help="mindspore-lite model path",
         type=str,
@@ -120,6 +132,8 @@ if __name__ == '__main__':
     config = InferenceConfig(
         hf_model_dir=args.hf_model_dir,
         ms_model_path=args.ms_model_path,
+        cpu_thread=args.cpu_thread,
+        cpu_support_fp16=args.cpu_support_fp16,
         onnx_model_path=args.onnx_model_path,
         session_type=args.session_type,
         max_batch=args.max_batch,

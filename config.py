@@ -8,6 +8,8 @@ class InferenceConfig:
         hf_model_dir: str,
         ms_model_path: str,
         onnx_model_path: str,
+        cpu_thread: int = 4,
+        cpu_support_fp16: bool = False,
         session_type: str = "ms_lite", # 支持ms_lite和onnx两种，ms_lite即MindSpore-Lite
         device_id: int = 0,
         sampling_method: str = "top_p", # 支持 greedy, top_p, top_k
@@ -24,6 +26,8 @@ class InferenceConfig:
     ):
         self.tokenizer_dir = hf_model_dir
         self.session_type = session_type
+        self.cpu_thread = cpu_thread
+        self.cpu_support_fp16 = cpu_support_fp16
         if self.session_type == "ms_lite":
             assert os.path.exists(ms_model_path), print(ms_model_path, "not exists")
         elif self.session_type == "onnx":

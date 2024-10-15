@@ -15,9 +15,9 @@ from config import InferenceConfig
 class MindSporeLiteModel:
     def __init__(self, config: InferenceConfig):
         self.model = None
-        self.build_model(config.ms_model_path)
+        self.build_model(config.ms_model_path, cpu_support_fp16=config.cpu_support_fp16)
 
-    def build_model(self, ms_model_path: str, cpu_support_fp16=False, support_ascend=False):
+    def build_model(self, ms_model_path: str, cpu_support_fp16=False, support_ascend=True):
         """
         编译模型
         Args:
@@ -32,12 +32,14 @@ class MindSporeLiteModel:
         else:
             context.target = ["cpu"]
         if cpu_support_fp16:    
+            print("cpu support float16")
             context.cpu.precision_mode = "preferred_fp16"
         print("=== create model ===")
         self.model = mslite.Model()
         self.model.build_from_file(
             ms_model_path,
-            mslite.ModelType.MINDIR_LITE, context
+            mslite.ModelType.MINDIR_LITE,
+            context
         )
         print("=== create model ok ===")
 
@@ -52,8 +54,16 @@ class MindSporeLiteModel:
             List[np.ndarray]: _description_
         """
         inputs = self.model.get_inputs()
+        # new_shape_list = []
         for i in range(len(inputs)):
+            # print(i, " ==> shape ", input_data_list[i].shape)
+            # temp_shape = input_data_list[i].shape
+            # if (i < len(inputs) - 1):
+            #     temp_shape = list(temp_shape)
+            #     temp_shape[3] = temp_shape[3] + 1
+            # new_shape_list.append(temp_shape)
             inputs[i].set_data_from_numpy(input_data_list[i])
+        # self.model.resize(inputs, new_shape_list)
         outputs: List[mslite.Tensor] = self.model.predict(inputs)
         output_data_list = []
         for output in outputs:

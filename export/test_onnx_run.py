@@ -10,9 +10,9 @@ project_dir = os.path.dirname(now_dir)
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    "--dtype",
+    "--input_dtype" ,
     type=str,
-    help="float16 or float32",
+    help="support float16/float32, if use CPU, only support fp32",
     choices=["float16", "float32"],
     default="float16",
 )
@@ -28,11 +28,17 @@ parser.add_argument(
     type=str,
     default=os.path.join(project_dir, "output", "onnx", "qwen2_1.5b_chat.onnx")
 )
+parser.add_argument(
+    "--cpu_thread",
+    help="the thread of cpu",
+    type=int,
+    default=4
+)
 args = parser.parse_args()
 
-if args.dtype == "float16":
+if args.input_dtype == "float16":
     np_dtype = np.float16
-elif args.dtype == "float32":
+elif args.input_dtype == "float32":
     np_dtype = np.float32
 else:
     raise Exception("not support dtype, only support float16/float32")
@@ -108,6 +114,9 @@ input_ids = tokenizer(
 print("input_ids", input_ids)
 
 options = onnxruntime.SessionOptions()
+options.intra_op_num_threads = args.cpu_thread
+options.execution_mode = onnxruntime.ExecutionMode.ORT_SEQUENTIAL
+options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
 llm_session = onnxruntime.InferenceSession(
     args.onnx_model_path,
     sess_options=options,

@@ -16,28 +16,47 @@ parser.add_argument(
     default="cpu",
 )
 parser.add_argument(
-    "--dtype",
+    "--model_dtype" ,
     type=str,
-    help="float16 or float32",
+    help="support float16/float32, if use CPU, only support fp32",
     choices=["float16", "float32"],
-    default="float32",
+    default="float16",
+)
+parser.add_argument(
+    "--input_dtype" ,
+    type=str,
+    help="support float16/float32, if use CPU, only support fp32",
+    choices=["float16", "float32"],
+    default="float16",
 )
 parser.add_argument(
     '--hf_model_dir',
     type=str,
     help="model and tokenizer path, only support huggingface model",
-    default=os.path.join(project_dir, "download", "Qwen2-1.5B-Instruct")
+    default=os.path.join(project_dir, "download", "Qwen2-0.5B-Instruct")
 )
 
 
 args = parser.parse_args()
+
 device_str = args.device_str
-if device_str == "cpu" and args.dtype == "float16":
+if device_str == "npu":
+    import torch_npu
+if device_str == "cpu" and args.model_dtype == "float16":
     raise Exception("CPU not support float16")
-if args.dtype == "float16":
-    torch_dtype = torch.float16
-elif args.dtype == "float32":
-    torch_dtype = torch.float32
+if args.model_dtype == "float16":
+    model_dtype = torch.float16
+elif args.model_dtype == "float32":
+    model_dtype = torch.float32
+else:
+    raise Exception("not support dtype, only support float16/float32")
+
+if device_str == "cpu" and args.input_dtype == "float16":
+    raise Exception("CPU not support float16")
+if args.input_dtype == "float16":
+    input_dtype = torch.float16
+elif args.input_dtype == "float32":
+    input_dtype = torch.float32
 else:
     raise Exception("not support dtype, only support float16/float32")
 
@@ -52,7 +71,7 @@ def create_kv_cache(config: Qwen2Config, kv_cache_length=1024, batch_size=1):
             kv_cache_length,
             config.hidden_size // config.num_attention_heads
         ],
-        dtype=torch_dtype
+        dtype=input_dtype
     ).to(device_str)
 
 
@@ -95,7 +114,7 @@ tokenizer = Qwen2Tokenizer.from_pretrained(args.hf_model_dir)
 model_config = Qwen2Config.from_pretrained(args.hf_model_dir)
 model = Qwen2ForCausalLM.from_pretrained(
     args.hf_model_dir,
-    torch_dtype=torch_dtype
+    torch_dtype=model_dtype
 ).to(device_str)
 prompt = "你好"
 system_prompt: str = "You are a helpful assistant."

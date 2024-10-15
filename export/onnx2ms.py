@@ -102,6 +102,13 @@ parser.add_argument(
     default=1024,
 )
 
+parser.add_argument(
+    "--config_file",
+    help="config file",
+    type=str,
+    default=None,
+)
+
 
 args = parser.parse_args()
 max_batch = args.max_batch
@@ -164,6 +171,8 @@ command_lines = [
     "--saveType={}".format(args.save_type.upper()),
     "--inputDataFormat=NCHW",  # 华为手机上面只支持NCHW，同时mindspore_lite也只支持NCHW,相关链接：https://developer.huawei.com/consumer/cn/doc/harmonyos-faqs-V5/hiaifoundation-faqs-3-V5
     "--inputDataType={}".format(args.input_data_type.upper()),
+    # "--outputDataFormat=NCHW",
+    # "--outputDataType=FLOAT",
     "--optimize={}".format(args.ms_optimize),
     "--optimizeTransformer={}".format(args.optimize_transformer),
     # "--precision_mode=must_keep_origin_dtype",
@@ -173,6 +182,7 @@ command_lines = [
         ",".join(position_ids_shape),
         ",".join(past_key_values_shape)
     ),
+    # "--NoFusion=true",
 ]
 # if args.device is not None:
 #     # "--device=Ascend", # 支持在Ascend上运行
@@ -186,6 +196,11 @@ if max_prefill_length > 1:
     command_lines.append(
         "--dynamic_dims \"{}\"".format(";".join(dynamic_dims))
     )
+if args.config_file is not None and len(args.config_file) > 0:
+    command_lines.append(
+        "--configFile={}".format(args.config_file)
+    )
+    
 print("============ run command ==============")
 print(" ".join(command_lines))
 print("=======================================")

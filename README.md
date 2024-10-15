@@ -59,12 +59,13 @@
   ```
 
 ### 详细运行步骤
-1. 导出onnx，默认kv-cache长度为1024，可以根据自己的内存、显存来设置更大参数。
+1. 导出onnx，默认kv-cache长度为1024，可以根据自己的内存、显存来设置更大参数，输入数据类型可以用float32，因为后续用仓颉的时候，绑定的C数据貌似暂时只能用float32。
   - 对于NPU设备
     ```bash
     python3 export/export_onnx.py \
       --device_str="npu" \
-      --dtype="float16" \
+      --model_dtype="float16" \
+      --input_dtype="float32" \
       --hf_model_dir="./download/Qwen2-0.5B-Instruct" \
       --onnx_model_path="./output/onnx/qwen2_0.5b_chat.onnx" \
       --kv_cache_length=1024
@@ -73,7 +74,8 @@
     ```bash
     python3 export/export_onnx.py \
       --device_str="cpu" \
-      --dtype="float32" \
+      --model_dtype="float32" \
+      --input_dtype="float32" \
       --hf_model_dir="./download/Qwen2-0.5B-Instruct" \
       --onnx_model_path="./output/onnx/qwen2_0.5b_chat.onnx" \
       --kv_cache_length=1024
@@ -84,28 +86,32 @@
     ```bash
     python3 export/test_pytorch_run.py \
       --device_str="cpu" \
-      --dtype="float32" \
+      --model_dtype="float32" \
+      --input_dtype="float32" \
       --hf_model_dir="./download/Qwen2-0.5B-Instruct"
     ```
-  - 再用cpu跑onnx
+  - （可选）再用NPU跑pytorch
+    ```bash
+    python3 export/test_pytorch_run.py \
+      --device_str="npu" \
+      --model_dtype="float16" \
+      --input_dtype="float32" \
+      --hf_model_dir="./download/Qwen2-0.5B-Instruct"
+    ```
+  - 再用cpu跑onnx（CPU选择4线程，你可以根据你的CPU调整）
     ```bash
     python3 export/test_onnx_run.py \
-      --dtype="float32" \
+      --input_dtype="float32" \
+      --cpu_thread=4 \
       --hf_model_dir="./download/Qwen2-0.5B-Instruct" \
       --onnx_model_path="./output/onnx/qwen2_0.5b_chat.onnx"
     ```
-  - 也可以用npu开发板上面的cpu跑onnx（一般测试结构，统一用上面的cpu会好一些）
-    ```bash
-    python3 export/test_onnx_run.py \
-      --dtype="float16" \
-      --hf_model_dir="./download/Qwen2-0.5B-Instruct" \
-      --onnx_model_path="./output/onnx/qwen2_0.5b_chat.onnx"
-    ```
-3. 测试使用onnx对话，用于验证onnx整体效果，若无明显乱码则说明正常。（注意：由于是CPU运行，所以速度较慢，请耐心等待）
+3. 测试使用onnx对话，用于验证onnx整体效果，若无明显乱码则说明正常。（注意：由于是CPU运行，所以速度较慢，请耐心等待）。
   ```bash
   python3 ./cli_chat.py \
     --session_type=onnx \
     --dtype="float32" \
+    --cpu_thread=4 \
     --hf_model_dir="./download/Qwen2-0.5B-Instruct" \
     --onnx_model_path="./output/onnx/qwen2_0.5b_chat.onnx"
   ```
@@ -122,12 +128,21 @@
     --kv_cache_length=1024
   ```
 
-
 5. 测试使用mindspore-lite生成的模型文件对话（由于Mindspore主要服务端侧CPU、NPU，对于NPU开发板，默认启用CPU，所以还是比较慢）。
+  - 如果CPU不支持float16
   ```bash
   python3 ./cli_chat.py \
     --session_type="ms_lite" \
     --dtype="float32" \
+    --hf_model_dir="./download/Qwen2-0.5B-Instruct" \
+    --ms_model_path="./output/model/qwen2_0.5b_chat.ms"
+  ```
+  - 如果CPU支持float16
+  ```bash
+  python3 ./cli_chat.py \
+    --session_type="ms_lite" \
+    --dtype="float32" \
+    --cpu_support_fp16=true \
     --hf_model_dir="./download/Qwen2-0.5B-Instruct" \
     --ms_model_path="./output/model/qwen2_0.5b_chat.ms"
   ```

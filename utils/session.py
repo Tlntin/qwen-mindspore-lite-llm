@@ -34,10 +34,13 @@ class Session:
         self.kv_cache.rollback(seq_len)
 
 class OnnxSession(Session):
-    def __init__(self,config:InferenceConfig)->None:
+    def __init__(self, config:InferenceConfig)->None:
         super().__init__(config)
         import onnxruntime
         options = onnxruntime.SessionOptions()
+        options.intra_op_num_threads = config.cpu_thread
+        options.execution_mode = onnxruntime.ExecutionMode.ORT_SEQUENTIAL
+        options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
         self.llm_session = onnxruntime.InferenceSession(
             config.onnx_model_path,
             sess_options=options,

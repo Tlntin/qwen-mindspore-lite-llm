@@ -1,7 +1,6 @@
 """_summary_
 qwen2 modeling_qwen2.py download: https://github.com/huggingface/transformers/blob/v4.37.0/src/transformers/models/qwen2/modeling_qwen2.py
 """
-
 import os
 import json
 import sys
@@ -42,7 +41,14 @@ def parser_arguments():
         default="npu",
     )
     parser.add_argument(
-        "--dtype" ,
+        "--model_dtype" ,
+        type=str,
+        help="support float16/float32, if use CPU, only support fp32",
+        choices=["float16", "float32"],
+        default="float16",
+    )
+    parser.add_argument(
+        "--input_dtype" ,
         type=str,
         help="support float16/float32, if use CPU, only support fp32",
         choices=["float16", "float32"],
@@ -71,7 +77,8 @@ def parser_arguments():
 
 def export_onnx(
     device_str,
-    dtype: str,
+    model_dtype: str,
+    input_dtype: str,
     hf_model_dir: str,
     onnx_model_path: str,
     kv_cache_length: int,
@@ -81,18 +88,24 @@ def export_onnx(
 ):
     if device_str == "npu":
         import torch_npu
-    if dtype == "float16":
+    if model_dtype == "float16":
         assert device_str.lower() != "cpu", print("cpu not support fp16")
-        torch_dtype = torch.float16
-    elif dtype == "float32":
-        torch_dtype = torch.float32
+        model_dtype = torch.float16
+    elif model_dtype == "float32":
+        model_dtype = torch.float32
     else:
         raise Exception("unsupport dtype")
-
+    if input_dtype == "float16":
+        assert device_str.lower() != "cpu", print("cpu not support fp16")
+        input_dtype = torch.float16
+    elif input_dtype == "float32":
+        input_dtype = torch.float32
+    else:
+        raise Exception("unsupport dtype")
     device = torch.device(device_str)
     model = Qwen2ForCausalLM.from_pretrained(
         hf_model_dir,
-        torch_dtype=torch_dtype,
+        torch_dtype=model_dtype,
         # trust_remote_code=True
     ).to(device)
     input_names = [
@@ -124,7 +137,7 @@ def export_onnx(
             kv_cache_length,
             per_head_dim
         ),
-        dtype=torch_dtype
+        dtype=input_dtype
     ).to(device)
     # convert [batch, w] to [batch, fake_c, fake_h, w]
     input_ids = input_ids.unsqueeze(1).unsqueeze(2)
@@ -199,7 +212,8 @@ if __name__ == "__main__":
     print("begin export onnx")
     export_onnx(
         device_str=args.device_str,
-        dtype=args.dtype,
+        model_dtype=args.model_dtype,
+        input_dtype=args.input_dtype,
         hf_model_dir=args.hf_model_dir,
         onnx_model_path=args.onnx_model_path,
         kv_cache_length=args.kv_cache_length,

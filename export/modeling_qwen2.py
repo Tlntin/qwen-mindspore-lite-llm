@@ -1017,7 +1017,9 @@ class Qwen2Model(Qwen2PreTrainedModel):
         # use_cache = use_cache if use_cache is not None else self.config.use_cache
 
         # return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
+        # get dtype
+        input_dtype = past_key_values.dtype
+        model_dtype = self.dtype
         # convert [batch, fake_c, fake_h, fake_w] to [batch, seq_len]
         input_ids = input_ids.view(-1, input_ids.size(-1))
         attention_mask = attention_mask.view(-1, attention_mask.size(-1))
@@ -1032,7 +1034,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
             self.num_key_value_heads,
             past_key_values.size(-2),
             past_key_values.size(-1),
-        )
+        ).to(model_dtype)
         # if input_ids is not None and inputs_embeds is not None:
         #     raise ValueError("You cannot specify both decoder_input_ids and decoder_inputs_embeds at the same time")
         # elif input_ids is not None:
@@ -1174,7 +1176,9 @@ class Qwen2Model(Qwen2PreTrainedModel):
         one_shape = [len(presents) // 2, 2] + list(presents[0].shape)
         presents = torch.concat(presents).reshape(one_shape)
         # convert kv_cache to [NCHW] format
-        presents = presents.view(batch_size, -1, presents.size(-2), presents.size(-1))
+        presents = presents.view(
+            batch_size, -1, presents.size(-2), presents.size(-1)
+        ).to(input_dtype)
         return (
             hidden_states,
             presents,
