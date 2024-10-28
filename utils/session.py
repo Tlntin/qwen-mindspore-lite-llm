@@ -1,5 +1,6 @@
 from config import InferenceConfig
 from utils.kvcache import create_kv_cache
+import torch
 import numpy as np
 from typing import List
 import math
@@ -21,8 +22,10 @@ class Session:
             return OnnxSession(config)
         elif config.session_type=='ms_lite':
             return MSLiteSession(config)
+        elif config.session_type == "pytorch":
+            return PyTorchSession(config)
         else:
-            return None
+            return Exception(f"unkown sesstion type {config.session_type}")
     
     def reset(self):
         if self.run_times == 0:
@@ -59,7 +62,29 @@ class OnnxSession(Session):
             "position_ids": pos_ids,
         })
         self.kv_cache.update(seq_len,result[1])
-        return result
+        return result[0]
+
+
+class PyTorchSession(Session):
+    def __init__(self, config: InferenceConfig) -> None:
+        super().__init__(config)
+        self.kv_cache = create_kv_cache(config)
+        from export.modeling_qwen2 import Qwen2ForCausalLM
+        self.device_str = config.device_str
+        self.model = Qwen2ForCausalLM.from_pretrained(
+            config.hf_model_dir,
+            torch_dtype=config.torch_dtype
+        ).to(config.device_str)
+
+    def run(self, input_ids: np.ndarray, show_progress=False):
+        if isinstance(input_ids, np.ndarray):
+            input_ids = torch.from_numpy(input_ids).long().to(self.device_str)
+        seq_len = input_ids.shape[-1]
+        cache, mask, pos_ids = self.kv_cache.get_inputs(seq_len)
+        result = self.model(input_ids, mask, pos_ids, cache)
+        self.kv_cache.update(seq_len, result[1])
+        return result[0].cpu().detach().numpy()
+
     
 # onnxruntime-cann is preview, not work now
 """
@@ -168,7 +193,7 @@ class MSLiteSession(Session):
                 idx_list = range(seq_len)
             for i in idx_list:
                 logits = self.run_some(input_ids[:, :, :, i:i+1])
-        return [logits]
+        return logits
     
     def run_some(
         self,

@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import torch
 import time
 import gc
 from transformers import AutoTokenizer
@@ -22,7 +23,9 @@ class Inference:
         self.sampling_method = config.sampling_method
         self.sampling_value = config.sampling_value
         self.temperature = config.temperature
-        self.session=Session.fromConfig(config)
+        self.session = Session.fromConfig(config)
+        self.session_type = config.session_type
+        self.torch_device = torch.device(config.device_str)
         # self.prompt=config.prompt
         self.kv_cache_length = config.kv_cache_length
         self.state: dict = {"code":200,"isEnd":False,"message":""}
@@ -30,7 +33,7 @@ class Inference:
         self.lock = Lock()
         self.first = True
         # self.stop_mp = {"[|Human|]":6,"[|AI|]":5,"<|assistant|>":6,"<|user|>":5}
-        print("init success")
+        print("[INFO] init success")
 
 
     def generate_cache(self, prompt: str):
@@ -141,9 +144,16 @@ class Inference:
             tokenize=False,
             add_generation_prompt=True
         )
-        input_ids = self.tokenizer(
-            [text], return_tensors="np"
-        )["input_ids"].astype(np.int64).reshape(1, 1, 1, -1)
+        if self.session_type in ["onnx", "ms_lite"]:
+            input_ids = self.tokenizer(
+                [text], return_tensors="np"
+            )["input_ids"].astype(np.int64).reshape(1, 1, 1, -1)
+        elif self.session_type == "pytorch":
+            input_ids = self.tokenizer(
+                [text], return_tensors="pt"
+            )["input_ids"].to(torch.long).reshape(1, 1, 1, -1).to(self.torch_device)
+        else:
+            raise Exception(f"unknown session_type {self.session_type}")
         input_ids = input_ids[:, :, :, -self.max_input_length:]
         # print("input_ids shape: ", input_ids.shape)
         self.first = False
@@ -151,7 +161,7 @@ class Inference:
         text_length = 0
         input_length = input_ids.shape[-1]
         if do_speed_test:
-            start = time.time()
+            first_token_start = time.time()
             first_token_latency = 0
             decode_speed = 0
         max_output_len = self.max_output_length - input_length
@@ -161,19 +171,21 @@ class Inference:
         else:
             temp_list = range(max_output_len)
         prefill_show_progress = False
+        decode_speed, totol_speed = 0.0, 0.0
         for i in temp_list:
             if i == 0:
                 if show_progress:
                     prefill_show_progress = True
                 # reset counter
-                self.session.run_times = 0
-                self.session.kv_cache.real_kv_size = 0
+                # self.session.run_times = 0
+                # self.session.kv_cache.real_kv_size = 0
+                self.reset()
             else:
                 prefill_show_progress = False
             logits = self.session.run(
                 input_ids,
                 show_progress=prefill_show_progress
-            )[0]
+            )
             input_ids = self.sample_logits(
                 logits[0, -1:, :, 0],
                 self.sampling_method,
@@ -182,7 +194,8 @@ class Inference:
             )
             input_ids = input_ids.reshape(1, 1, 1, -1)
             if do_speed_test and i == 0:
-                first_token_latency = time.time() - start
+                decode_token_start = time.time()
+                first_token_latency = decode_token_start - first_token_start
             with self.lock:
                 # early stop
                 if input_ids[0][0][0] == self.tokenizer.eos_token_id:
@@ -193,10 +206,12 @@ class Inference:
                 # stop_word = is_stop_word_or_prefix(text_out, ["[|Human|]", "[|AI|]"])
                 self.state['message'] = text_out
                 new_text = text_out[text_length: ]
-                if do_speed_test:
-                    duration = time.time() - start
-                    decode_speed = len(ids_list) / duration
-                    totol_speed = (input_length + len(ids_list)) / duration
+                if do_speed_test and i > 0:
+                    now_time = time.time()
+                    decode_duration = now_time - decode_token_start
+                    total_duration = now_time - first_token_start
+                    decode_speed = (len(ids_list) - 1) / decode_duration
+                    totol_speed = (input_length + len(ids_list)) / total_duration
                 if b"\xef\xbf\xbd" in new_text.encode():
                     continue
                 if len(new_text) > 0:
@@ -237,14 +252,21 @@ class Inference:
             tokenize=False,
             add_generation_prompt=True
         )
-        input_ids = self.tokenizer(
-            [text], return_tensors="np"
-        )["input_ids"].astype(np.int64).reshape(1, -1)
+        if self.session_type in ["onnx", "ms_lite"]:
+            input_ids = self.tokenizer(
+                [text], return_tensors="np"
+            )["input_ids"].astype(np.int64).reshape(1, 1, 1, -1)
+        elif self.session_type == "pytorch":
+            input_ids = self.tokenizer(
+                [text], return_tensors="pt"
+            )["input_ids"].to(torch.long).reshape(1, 1, 1, -1).to(self.torch_device)
+        else:
+            raise Exception(f"unknown session_type {self.session_type}")
         input_ids = input_ids[:, -self.max_input_length:]
         self.first = False
         ids_list = []
         # text_length = 0
-        input_length = input_ids.shape[1]
+        input_length = input_ids.shape[-1]
         # start = time.time()
         # first_token_latency = 0
         # decode_speed = 0
@@ -260,29 +282,30 @@ class Inference:
                 if show_progress:
                     prefill_show_progress = True
                 # reset counter
-                self.session.run_times = 0
-                self.session.kv_cache.real_kv_size = 0
+                # self.session.run_times = 0
+                # self.session.kv_cache.real_kv_size = 0
+                self.reset()
             else:
                 prefill_show_progress = False
             logits = self.session.run(
                 input_ids,
                 show_progress=prefill_show_progress
-            )[0]
+            )
             input_ids = self.sample_logits(
-                logits[0][-1:],
+                logits[0, -1:, :, 0],
                 self.sampling_method,
                 sampling_value,
                 temperature
             )
-            input_ids = input_ids.reshape(1, -1)
+            input_ids = input_ids.reshape(1, 1, 1, -1)
             # if i == 0:
             #     first_token_latency = time.time() - start
             with self.lock:
                 # early stop
-                if input_ids[0] == self.tokenizer.eos_token_id:
+                if input_ids[0][0][0] == self.tokenizer.eos_token_id:
                     self.state['message'],self.state['isEnd'] = self.tokenizer.decode(ids_list),True
                     break
-                ids_list.append(input_ids[0].item())
+                ids_list.append(input_ids[0][0][0].item())
                 # text_out = self.tokenizer.decode(ids_list)
                 # stop_word = is_stop_word_or_prefix(text_out, ["[|Human|]", "[|AI|]"])
                 # self.state['message'] = text_out
@@ -304,7 +327,7 @@ class Inference:
         self.first = False
         ids_list = []
         input_ids = input_ids[:, -self.max_input_length:]
-        input_length = input_ids.shape[1]
+        input_length = input_ids.shape[-1]
         max_output_len = self.max_output_length - input_length
         max_output_len = min(max_output_len, max_new_tokens)
         if show_progress:
@@ -317,27 +340,28 @@ class Inference:
                 if show_progress:
                     prefill_show_progress = True
                 # reset counter
-                self.session.run_times = 0
-                self.session.kv_cache.real_kv_size = 0
+                # self.session.run_times = 0
+                # self.session.kv_cache.real_kv_size = 0
+                self.reset();
             else:
                 prefill_show_progress = False
             logits = self.session.run(
                 input_ids,
                 show_progress=prefill_show_progress
-            )[0]
+            )
             input_ids = self.sample_logits(
-                logits[0][-1:],
+                logits[0, -1:, :, 0],
                 self.sampling_method,
                 sampling_value,
                 temperature
             )
-            input_ids = input_ids.reshape(1, -1)
+            input_ids = input_ids.reshape(1, 1, 1, -1)
             with self.lock:
                 # early stop
-                if input_ids[0] == self.tokenizer.eos_token_id:
+                if input_ids[0][0][0] == self.tokenizer.eos_token_id:
                     self.state['message'],self.state['isEnd'] = self.tokenizer.decode(ids_list),True
                     break
-                ids_list.append(input_ids[0].item())
+                ids_list.append(input_ids[0][0][0].item())
                 text_out = self.tokenizer.decode(ids_list)
                 # print("Debug: ", text_out)
                 # stop_word = is_stop_word_or_prefix(text_out, ["[|Human|]", "[|AI|]"])

@@ -58,6 +58,20 @@
   pip install ./torch_npu-2.1.0.post6-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
   ```
 
+### （可选）验证模型结构
+- 在完成pytorch模型结构魔改后，需要验证一下模型是否正常。 
+- 验证pytorch CPU环境下，对话是否正常，该步骤主要是验证模型整体结构是否ok，可以多试几个demo，推荐试试`背诵《出师表》`
+  ```bash
+  python3 ./cli_chat.py \
+      --session_type="pytorch" \
+      --hf_model_dir="./download/Qwen2-0.5B-Instruct" \
+      --device_str="cpu" \
+      --dtype="float32" \
+      --torch_dtype="float32" \
+      --max_input_length=512 \
+      --max_output_length=1024
+
+
 ### 详细运行步骤
 1. 导出onnx，默认kv-cache长度为1024，可以根据自己的内存、显存来设置更大参数，输入数据类型可以用float32，因为后续用仓颉的时候，绑定的C数据貌似暂时只能用float32。
   - 对于NPU设备
@@ -81,7 +95,7 @@
       --kv_cache_length=1024
     ```
 
-2. 验证onnx，需要分别运行pytorch和onnx，观察两边输出误差，若误差较小(最大误差低于3位小数，平均误差低于5位小数)，则说明onnx导出是ok的。
+2. （可选）验证onnx，需要分别运行pytorch和onnx，观察两边输出误差，若误差较小(最大误差低于3位小数，平均误差低于5位小数)，则说明onnx导出是ok的。
   - 先用cpu跑pytorch
     ```bash
     python3 export/test_pytorch_run.py \
@@ -113,17 +127,29 @@
     --dtype="float32" \
     --cpu_thread=4 \
     --hf_model_dir="./download/Qwen2-0.5B-Instruct" \
-    --onnx_model_path="./output/onnx/qwen2_0.5b_chat.onnx"
+    --onnx_model_path="./output/onnx/qwen2_0.5b_chat.onnx" \
+    --max_input_length=512 \
+    --max_output_length=1024
   ```
 
 
 4. 将onnx转成MindSpore-Lite的文件（推荐在NPU开发板上面转，得到的ms模型更小。）
+  - 方案1：使用Linux下面安装的mindspore-lite库文件，仅用于Linux系统。
   ```bash
   python3 export/onnx2ms.py \
     --hf_model_dir="${PWD}/download/Qwen2-0.5B-Instruct" \
     --onnx_model_path="${PWD}/output/onnx/qwen2_0.5b_chat.onnx" \
     --ms_model_path="${PWD}/output/model/qwen2_0.5b_chat" \
     --save_type="mindir_lite" \
+    --ms_optimize="general" \
+    --kv_cache_length=1024
+  ```
+  - 方案2：使用python绑定的mindspore-lite库文件
+  ```bash
+  python3 export/onnx2ms_v2.py \
+    --hf_model_dir="${PWD}/download/Qwen2-0.5B-Instruct" \
+    --onnx_model_path="${PWD}/output/onnx/qwen2_0.5b_chat.onnx" \
+    --ms_model_path="${PWD}/output/model/qwen2_0.5b_chat" \
     --ms_optimize="general" \
     --kv_cache_length=1024
   ```
@@ -135,7 +161,9 @@
     --session_type="ms_lite" \
     --dtype="float32" \
     --hf_model_dir="./download/Qwen2-0.5B-Instruct" \
-    --ms_model_path="./output/model/qwen2_0.5b_chat.ms"
+    --ms_model_path="./output/model/qwen2_0.5b_chat.ms" \
+    --max_input_length=512 \
+    --max_output_length=1024
   ```
   - 如果CPU支持float16
   ```bash
@@ -144,7 +172,9 @@
     --dtype="float32" \
     --cpu_support_fp16=true \
     --hf_model_dir="./download/Qwen2-0.5B-Instruct" \
-    --ms_model_path="./output/model/qwen2_0.5b_chat.ms"
+    --ms_model_path="./output/model/qwen2_0.5b_chat.ms" \
+    --max_input_length=512 \
+    --max_output_length=1024
   ```
 
 

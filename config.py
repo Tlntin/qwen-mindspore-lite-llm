@@ -1,4 +1,5 @@
 import os
+import torch
 from transformers.models.qwen2 import Qwen2Config, Qwen2Tokenizer
 
 
@@ -23,8 +24,11 @@ class InferenceConfig:
         kv_cache_length: int = 1024, # kvcache的最大长度
         cache_format: str = 'huggingface-tensor', # kv_cache的格式
         dtype:str="float16",
+        torch_dtype: str = "float16",
+        device_str: str = "cpu",
     ):
         self.tokenizer_dir = hf_model_dir
+        self.hf_model_dir = hf_model_dir
         self.session_type = session_type
         self.cpu_thread = cpu_thread
         self.cpu_support_fp16 = cpu_support_fp16
@@ -32,6 +36,8 @@ class InferenceConfig:
             assert os.path.exists(ms_model_path), print(ms_model_path, "not exists")
         elif self.session_type == "onnx":
             assert os.path.exists(onnx_model_path), print(onnx_model_path, "not exists")
+        elif self.session_type == "pytorch":
+            assert os.path.exists(hf_model_dir), print(hf_model_dir, "not exists")
         self.ms_model_path = ms_model_path
         self.onnx_model_path = onnx_model_path
         self.device_id = device_id
@@ -45,6 +51,13 @@ class InferenceConfig:
         self.kv_cache_length = kv_cache_length  # max_cache_size
         self.cache_format = cache_format
         self.dtype = dtype
+        if torch_dtype == "float16":
+            self.torch_dtype = torch.float16
+        elif torch_dtype == "float32":
+            self.torch_dtype = torch.float32
+        else:
+            self.torch_type = "auto"
+        self.device_str = device_str
         self.model_config = Qwen2Config.from_pretrained(hf_model_dir)
         self.num_hidden_layers = self.model_config.num_hidden_layers # n_layer
         self.num_key_value_heads = self.model_config.num_key_value_heads # head_num

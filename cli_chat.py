@@ -30,9 +30,23 @@ def parser_args():
     parser.add_argument(
         "--session_type",
         type=str,
-        help="ms_lite(mindspore-lite) or onnx",
-        choices=["ms_lite", "onnx"],
-        default="ms_lite",
+        help="run with ms_lite(mindspore-lite) or onnx or pytorch",
+        choices=["ms_lite", "onnx", "pytorch"],
+        default="onnx",
+    )
+    parser.add_argument(
+        "--torch_dtype",
+        type=str,
+        help="support float16/float32, if use CPU, only support fp32",
+        choices=["float16", "float32"],
+        default="float32",
+    )
+    parser.add_argument(
+        "--device_str",
+        type=str,
+        help="support cpu, cuda, npu, only activate when sesstion_type is pytorch",
+        choices=["cpu", "cuda", "npu"],
+        default="cpu",
     )
     parser.add_argument(
         '--onnx_model_path',
@@ -99,12 +113,13 @@ def inference_cli():
             break
         if input_text == 'clear':
             history = []
+            infer_engine.reset()
             print("Output: 已清理历史对话信息。")
             continue
         print("Output: ", end='')
         response = ""
         is_first = True
-        first_token_lantency, decode_speed = 0, 0
+        first_token_lantency, decode_speed, total_speed = 0, 0, 0.0
         for (
                 new_text,
                 first_token_lantency,
@@ -142,6 +157,8 @@ if __name__ == '__main__':
         kv_cache_length=args.max_output_length,
         max_prefill_length=max_prefill_length,
         dtype=args.dtype,
+        torch_dtype=args.torch_dtype,
+		device_str=args.device_str
     )
     # main()
     inference_cli()

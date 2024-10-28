@@ -17,7 +17,7 @@ class MindSporeLiteModel:
         self.model = None
         self.build_model(config.ms_model_path, cpu_support_fp16=config.cpu_support_fp16)
 
-    def build_model(self, ms_model_path: str, cpu_support_fp16=False, support_ascend=True):
+    def build_model(self, ms_model_path: str, cpu_support_fp16=False, support_ascend=False):
         """
         编译模型
         Args:

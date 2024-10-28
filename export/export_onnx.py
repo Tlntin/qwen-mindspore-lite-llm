@@ -119,7 +119,7 @@ def export_onnx(
         "input_ids": {0: "batch_size", 3: "seq_length"},
         "attention_mask": {0: "batch_size", 3: "seq_length+kv_len"},
         "position_ids": {0: "batch_size", 3: "seq_length"},
-        "past_key_values": {0: "batch_size", 3: "kv_len"},
+        "past_key_values": {0: "batch_size", 2: "kv_len"},
     }
     batch_size = 1
     seq_len = 1
